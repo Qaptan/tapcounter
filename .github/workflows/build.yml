@@ -1,0 +1,202 @@
+name: Build APK
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          
+      - name: Build Android Project
+        run: |
+          # Create folder structure
+          mkdir -p app/src/main/java/com/tapcounter/app
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-hdpi
+          
+          # Create MainActivity.kt
+          cat > app/src/main/java/com/tapcounter/app/MainActivity.kt << 'EOF'
+          package com.tapcounter.app
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.TextView
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.lifecycle.ViewModelProvider
+          
+          class MainActivity : AppCompatActivity() {
+              private lateinit var viewModel: CounterViewModel
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
+                  viewModel = ViewModelProvider(this)[CounterViewModel::class.java]
+                  val counterText: TextView = findViewById(R.id.counterText)
+                  val tapButton: Button = findViewById(R.id.tapButton)
+                  val resetButton: Button = findViewById(R.id.resetButton)
+                  viewModel.counter.observe(this) { count -> counterText.text = count.toString() }
+                  tapButton.setOnClickListener { viewModel.increment() }
+                  resetButton.setOnClickListener { viewModel.reset() }
+              }
+          }
+          EOF
+          
+          # Create CounterViewModel.kt
+          cat > app/src/main/java/com/tapcounter/app/CounterViewModel.kt << 'EOF'
+          package com.tapcounter.app
+          import androidx.lifecycle.LiveData
+          import androidx.lifecycle.MutableLiveData
+          import androidx.lifecycle.ViewModel
+          
+          class CounterViewModel : ViewModel() {
+              private val _counter = MutableLiveData(0)
+              val counter: LiveData<Int> = _counter
+              fun increment() { _counter.value = (_counter.value ?: 0) + 1 }
+              fun reset() { _counter.value = 0 }
+          }
+          EOF
+          
+          # Create layout
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="24dp">
+              
+              <TextView
+                  android:id="@+id/counterText"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="0"
+                  android:textSize="100sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="50dp"/>
+                  
+              <Button
+                  android:id="@+id/tapButton"
+                  android:layout_width="200dp"
+                  android:layout_height="200dp"
+                  android:text="TAP"
+                  android:textSize="40sp"
+                  android:layout_marginBottom="20dp"/>
+                  
+              <Button
+                  android:id="@+id/resetButton"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="RESET"
+                  android:textSize="20sp"/>
+          </LinearLayout>
+          EOF
+          
+          # Create strings.xml
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <resources>
+              <string name="app_name">Tap Counter</string>
+          </resources>
+          EOF
+          
+          # Create AndroidManifest.xml
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.tapcounter.app">
+              <application
+                  android:allowBackup="false"
+                  android:icon="@android:drawable/ic_menu_add"
+                  android:label="@string/app_name"
+                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          
+          # Create build.gradle files
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.1.0' apply false
+          }
+          EOF
+          
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Tap Counter"
+          include ':app'
+          EOF
+          
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          android {
+              namespace 'com.tapcounter.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.tapcounter.app"
+                  minSdk 23
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          }
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
+          }
+          EOF
+          
+          # Setup Gradle
+          gradle wrapper
+          
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+        
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tap-counter-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
