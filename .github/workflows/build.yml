@@ -12,13 +12,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           
-      - name: Build Android Project
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+          
+      - name: Create Project Files
         run: |
           # Create folder structure
           mkdir -p app/src/main/java/com/tapcounter/app
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/res/mipmap-hdpi
           
           # Create MainActivity.kt
           cat > app/src/main/java/com/tapcounter/app/MainActivity.kt << 'EOF'
@@ -27,36 +29,25 @@ jobs:
           import android.widget.Button
           import android.widget.TextView
           import androidx.appcompat.app.AppCompatActivity
-          import androidx.lifecycle.ViewModelProvider
           
           class MainActivity : AppCompatActivity() {
-              private lateinit var viewModel: CounterViewModel
+              private var count = 0
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_main)
-                  viewModel = ViewModelProvider(this)[CounterViewModel::class.java]
-                  val counterText: TextView = findViewById(R.id.counterText)
-                  val tapButton: Button = findViewById(R.id.tapButton)
-                  val resetButton: Button = findViewById(R.id.resetButton)
-                  viewModel.counter.observe(this) { count -> counterText.text = count.toString() }
-                  tapButton.setOnClickListener { viewModel.increment() }
-                  resetButton.setOnClickListener { viewModel.reset() }
+                  val counterText = findViewById<TextView>(R.id.counterText)
+                  val tapButton = findViewById<Button>(R.id.tapButton)
+                  val resetButton = findViewById<Button>(R.id.resetButton)
+                  
+                  tapButton.setOnClickListener {
+                      count++
+                      counterText.text = count.toString()
+                  }
+                  resetButton.setOnClickListener {
+                      count = 0
+                      counterText.text = "0"
+                  }
               }
-          }
-          EOF
-          
-          # Create CounterViewModel.kt
-          cat > app/src/main/java/com/tapcounter/app/CounterViewModel.kt << 'EOF'
-          package com.tapcounter.app
-          import androidx.lifecycle.LiveData
-          import androidx.lifecycle.MutableLiveData
-          import androidx.lifecycle.ViewModel
-          
-          class CounterViewModel : ViewModel() {
-              private val _counter = MutableLiveData(0)
-              val counter: LiveData<Int> = _counter
-              fun increment() { _counter.value = (_counter.value ?: 0) + 1 }
-              fun reset() { _counter.value = 0 }
           }
           EOF
           
@@ -69,7 +60,6 @@ jobs:
               android:orientation="vertical"
               android:gravity="center"
               android:padding="24dp">
-              
               <TextView
                   android:id="@+id/counterText"
                   android:layout_width="wrap_content"
@@ -78,7 +68,6 @@ jobs:
                   android:textSize="100sp"
                   android:textStyle="bold"
                   android:layout_marginBottom="50dp"/>
-                  
               <Button
                   android:id="@+id/tapButton"
                   android:layout_width="200dp"
@@ -86,13 +75,11 @@ jobs:
                   android:text="TAP"
                   android:textSize="40sp"
                   android:layout_marginBottom="20dp"/>
-                  
               <Button
                   android:id="@+id/resetButton"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="RESET"
-                  android:textSize="20sp"/>
+                  android:text="RESET"/>
           </LinearLayout>
           EOF
           
@@ -125,13 +112,15 @@ jobs:
           </manifest>
           EOF
           
-          # Create build.gradle files
+          # Create build.gradle (project level)
           cat > build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.1.0' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.0' apply false
           }
           EOF
           
+          # Create settings.gradle (CRITICAL - Plugin management)
           cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -151,6 +140,7 @@ jobs:
           include ':app'
           EOF
           
+          # Create app/build.gradle
           cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -184,16 +174,18 @@ jobs:
               implementation 'androidx.core:core-ktx:1.12.0'
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'com.google.android.material:material:1.11.0'
-              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-              implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
           }
           EOF
           
-          # Setup Gradle
-          gradle wrapper
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.2
           
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: |
+          gradle wrapper
+          ./gradlew assembleDebug
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
